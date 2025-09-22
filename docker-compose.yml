@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tezos-postgres
+    environment:
+      POSTGRES_USER: tezos
+      POSTGRES_PASSWORD: tezos
+      POSTGRES_DB: tezos_delegations
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tezos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tezos-network
+
+  tezos-delegation-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tezos-delegation-service
+    environment:
+      DATABASE_URL: postgres://tezos:tezos@postgres:5432/tezos_delegations?sslmode=disable
+      SERVER_PORT: 8080
+      TZKT_API_URL: https://api.tzkt.io
+      POLLING_INTERVAL: 30s
+      HISTORICAL_INDEXING: "true"
+      HISTORICAL_START_DATE: "2021-01-01"
+      LOG_LEVEL: info
+      METRICS_PORT: 9090
+      ENVIRONMENT: production
+      MAX_RETRIES: 3
+      RETRY_DELAY: 5s
+      CONNECTION_POOL_SIZE: 20
+      CONNECTION_TIMEOUT: 30s
+      REQUEST_TIMEOUT: 60s
+      AUTO_RESTORE: "true"
+      DB_HOST: postgres
+      DB_USER: tezos
+      DB_PASSWORD: tezos
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - tezos-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: tezos-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - tezos-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: tezos-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - tezos-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  tezos-network:
+    driver: bridge

@@ -1,0 +1,43 @@
+run:
+  timeout: 5m
+  tests: false
+  skip-dirs:
+    - vendor
+    - third_party
+    - testdata
+    - examples
+    - pkg/mocks
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters:
+  enable-all: false
+  enable:
+    - gofmt
+    - govet
+    - errcheck
+    - staticcheck
+    - gosimple
+    - ineffassign
+    - unused
+  disable-all: false
+
+linters-settings:
+  govet:
+    check-shadowing: true
+  gofmt:
+    simplify: true
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - ineffassign
+    - path: _test\.go
+      text: ".*"
+  max-issues-per-linter: 0
+  max-same-issues: 0
