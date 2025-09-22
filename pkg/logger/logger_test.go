@@ -74,7 +74,7 @@ func TestNew(t *testing.T) {
 			
 			require.NoError(t, err)
 			require.NotNil(t, logger)
-			require.NotNil(t, logger.Logger)
+			require.NotNil(t, logger.SugaredLogger)
 		})
 	}
 }
@@ -171,7 +171,7 @@ func TestLogger_LoggingMethods(t *testing.T) {
 	)
 	
 	zapLogger := zap.New(core)
-	logger := &Logger{Logger: zapLogger.Sugar()}
+	logger := &Logger{SugaredLogger: zapLogger.Sugar()}
 
 	tests := []struct {
 		name     string
@@ -356,7 +356,7 @@ func TestLogger_LevelFiltering(t *testing.T) {
 			)
 			
 			zapLogger := zap.New(core)
-			logger := &Logger{Logger: zapLogger.Sugar()}
+			logger := &Logger{SugaredLogger: zapLogger.Sugar()}
 			
 			// Execute test logs
 			tt.testLogs(logger)
