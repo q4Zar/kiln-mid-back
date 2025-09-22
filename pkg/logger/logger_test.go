@@ -141,8 +141,8 @@ func TestLogger_WithFields(t *testing.T) {
 			newLogger := logger.WithFields(tt.fields)
 			tt.verify(t, newLogger)
 			
-			// Verify it's a new logger instance
-			assert.NotEqual(t, logger, newLogger)
+			// Verify it's a new logger instance (compare pointers)
+			assert.NotSame(t, logger, newLogger)
 		})
 	}
 }
