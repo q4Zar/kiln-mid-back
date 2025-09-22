@@ -20,14 +20,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o tezos-delegation-
 FROM builder AS test
 RUN go test -v -short -race ./...
 
-# Migration tools stage
-FROM golang:1.23-alpine AS migration
-RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.0
-
 # Final stage - using golang image to support testing
 FROM golang:1.23-alpine AS final
 
-# Install runtime dependencies
+# Install runtime dependencies including postgresql-client for migrations
 RUN apk --no-cache add ca-certificates tzdata postgresql-client bash gcc musl-dev
 
 WORKDIR /app
@@ -35,11 +31,8 @@ WORKDIR /app
 # Copy source code for testing
 COPY --from=builder /app /app
 
-# Copy migration tool
-COPY --from=migration /go/bin/migrate /usr/local/bin/migrate
-
 # Make scripts executable
-RUN chmod +x /app/scripts/*.sh
+RUN chmod +x /app/scripts/*.sh 2>/dev/null || true
 
 # Create backup directory
 RUN mkdir -p /backups

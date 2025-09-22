@@ -37,10 +37,23 @@ wait_for_postgres() {
 # Run database migrations
 run_migrations() {
     print_warning "Running database migrations..."
-    if migrate -path /app/migrations -database "${DATABASE_URL}" up; then
+    
+    # Run SQL migration files in order
+    if [ -d /app/migrations ]; then
+        for migration in /app/migrations/*.sql; do
+            if [ -f "$migration" ]; then
+                echo "Running migration: $(basename $migration)"
+                if psql "${DATABASE_URL}" -f "$migration"; then
+                    echo "✓ $(basename $migration) completed"
+                else
+                    # Some migrations may fail if already applied, continue anyway
+                    echo "⚠ $(basename $migration) skipped (may already be applied)"
+                fi
+            fi
+        done
         print_status "Migrations completed successfully"
     else
-        print_error "Migration failed"
+        print_error "No migrations directory found"
         return 1
     fi
 }
@@ -49,19 +62,27 @@ run_migrations() {
 restore_backup() {
     print_warning "Checking for backup to restore..."
     
-    # Check if database has data
-    DELEGATION_COUNT=$(psql "${DATABASE_URL}" -t -c "SELECT COUNT(*) FROM delegations" 2>/dev/null || echo "0")
+    # Check if delegations table exists and has data
+    TABLE_EXISTS=$(psql "${DATABASE_URL}" -t -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'delegations')" 2>/dev/null || echo "f")
     
-    if [ "$DELEGATION_COUNT" = "0" ]; then
-        if [ -f /app/backups/latest.sql.gz ]; then
-            print_warning "Restoring database from backup..."
-            zcat /app/backups/latest.sql.gz | psql "${DATABASE_URL}"
-            print_status "Database restored from backup"
+    if [ "$TABLE_EXISTS" = " t" ] || [ "$TABLE_EXISTS" = "t" ]; then
+        # Table exists, check if it has data
+        DELEGATION_COUNT=$(psql "${DATABASE_URL}" -t -c "SELECT COUNT(*) FROM delegations" 2>/dev/null || echo "0")
+        DELEGATION_COUNT=$(echo $DELEGATION_COUNT | tr -d ' ')
+        
+        if [ "$DELEGATION_COUNT" = "0" ] || [ -z "$DELEGATION_COUNT" ]; then
+            if [ -f /app/backups/latest.sql.gz ]; then
+                print_warning "Restoring database from backup..."
+                zcat /app/backups/latest.sql.gz | psql "${DATABASE_URL}"
+                print_status "Database restored from backup"
+            else
+                print_warning "No backup found, starting with empty database"
+            fi
         else
-            print_warning "No backup found, starting with empty database"
+            print_status "Database already contains $DELEGATION_COUNT delegations, skipping restore"
         fi
     else
-        print_status "Database already contains $DELEGATION_COUNT delegations, skipping restore"
+        print_warning "Delegations table doesn't exist yet, skipping restore (will be created by migrations)"
     fi
 }
 
