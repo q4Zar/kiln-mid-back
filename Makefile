@@ -29,17 +29,67 @@ run:
 	@echo "$(YELLOW)Running $(APP_NAME)...$(NC)"
 	@$(GO) run $(MAIN_PATH)
 
-## test: Run all tests
+## test: Run all unit tests
 test:
-	@echo "$(YELLOW)Running tests...$(NC)"
-	@$(GO) test -v -race -coverprofile=coverage.out ./...
+	@echo "$(YELLOW)Running unit tests...$(NC)"
+	@$(GO) test -v -short -race -coverprofile=coverage.out ./...
 	@echo "$(GREEN)Tests complete$(NC)"
+
+## test-unit: Run unit tests with verbose output
+test-unit:
+	@echo "$(YELLOW)Running unit tests...$(NC)"
+	@$(GO) test -v -short -race ./...
+	@echo "$(GREEN)Unit tests complete$(NC)"
+
+## test-integration: Run integration tests
+test-integration:
+	@echo "$(YELLOW)Running integration tests...$(NC)"
+	@$(GO) test -v -race -tags=integration ./internal/...
+	@echo "$(GREEN)Integration tests complete$(NC)"
+
+## test-all: Run all tests (unit and integration)
+test-all:
+	@echo "$(YELLOW)Running all tests...$(NC)"
+	@$(GO) test -v -race -coverprofile=coverage.out ./...
+	@echo "$(GREEN)All tests complete$(NC)"
 
 ## test-coverage: Run tests with coverage report
 test-coverage: test
 	@echo "$(YELLOW)Generating coverage report...$(NC)"
 	@$(GO) tool cover -html=coverage.out -o coverage.html
+	@$(GO) tool cover -func=coverage.out | grep total | awk '{print "Total Coverage: " $$3}'
 	@echo "$(GREEN)Coverage report generated: coverage.html$(NC)"
+
+## test-coverage-detailed: Generate detailed coverage report with function breakdown
+test-coverage-detailed:
+	@echo "$(YELLOW)Running tests with detailed coverage...$(NC)"
+	@$(GO) test -v -race -coverprofile=coverage.out -coverpkg=./... ./...
+	@echo "$(YELLOW)Generating detailed coverage report...$(NC)"
+	@$(GO) tool cover -html=coverage.out -o coverage.html
+	@$(GO) tool cover -func=coverage.out
+	@echo "$(GREEN)Detailed coverage report generated: coverage.html$(NC)"
+
+## test-benchmark: Run benchmark tests
+test-benchmark:
+	@echo "$(YELLOW)Running benchmark tests...$(NC)"
+	@$(GO) test -bench=. -benchmem ./...
+	@echo "$(GREEN)Benchmark tests complete$(NC)"
+
+## test-specific: Run tests for a specific package (usage: make test-specific PKG=./internal/application)
+test-specific:
+	@if [ -z "$(PKG)" ]; then \
+		echo "$(YELLOW)Please specify a package: make test-specific PKG=./internal/application$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(YELLOW)Running tests for $(PKG)...$(NC)"
+	@$(GO) test -v -race $(PKG)
+	@echo "$(GREEN)Tests complete for $(PKG)$(NC)"
+
+## test-watch: Run tests in watch mode (requires entr)
+test-watch:
+	@echo "$(YELLOW)Running tests in watch mode...$(NC)"
+	@command -v entr >/dev/null 2>&1 || { echo "$(YELLOW)Installing entr...$(NC)"; brew install entr; }
+	@find . -name '*.go' | entr -c $(GO) test -v -short ./...
 
 ## lint: Run linters
 lint:

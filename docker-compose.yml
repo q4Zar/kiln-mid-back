@@ -25,6 +25,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: final
     container_name: tezos-delegation-service
     environment:
       DATABASE_URL: postgres://tezos:tezos@postgres:5432/tezos_delegations?sslmode=disable
@@ -41,15 +42,23 @@ services:
       CONNECTION_POOL_SIZE: 20
       CONNECTION_TIMEOUT: 30s
       REQUEST_TIMEOUT: 60s
-      AUTO_RESTORE: "true"
+      # Docker entrypoint settings
       DB_HOST: postgres
+      DB_PORT: 5432
       DB_USER: tezos
       DB_PASSWORD: tezos
+      DB_NAME: tezos_delegations
+      # Test and restore settings
+      RUN_TESTS: "true"
+      RUN_INTEGRATION_TESTS: "false"
+      RESTORE_BACKUP: "true"
+      SKIP_TEST_FAILURE: "false"
     ports:
       - "8080:8080"
       - "9090:9090"
     volumes:
-      - ./backups:/backups
+      - ./backups:/app/backups
+      - ./migrations:/app/migrations
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,7 +70,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
+    entrypoint: ["/app/scripts/docker-entrypoint.sh"]
+    command: ["/app/tezos-delegation-service"]
 
   prometheus:
     image: prom/prometheus:latest

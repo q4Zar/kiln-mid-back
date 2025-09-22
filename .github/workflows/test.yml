@@ -1,0 +1,106 @@
+name: Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.23'
+
+    - name: Install dependencies
+      run: |
+        go mod download
+        go mod tidy
+
+    - name: Install golangci-lint
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.2
+
+    - name: Run linters
+      run: golangci-lint run --timeout 5m
+
+    - name: Run unit tests
+      run: make test
+
+    - name: Run integration tests
+      env:
+        TEST_DB_HOST: localhost
+        TEST_DB_PORT: 5432
+        TEST_DB_USER: testuser
+        TEST_DB_PASSWORD: testpass
+        TEST_DB_NAME: testdb
+      run: go test -v -tags=integration ./internal/...
+
+    - name: Generate coverage report
+      run: |
+        go test -race -coverprofile=coverage.out -covermode=atomic ./...
+        go tool cover -func=coverage.out
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Build
+      run: make build
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: |
+          coverage.out
+          coverage.html
+        retention-days: 7
+
+  benchmark:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.23'
+
+    - name: Run benchmarks
+      run: make test-benchmark
+
+    - name: Store benchmark results
+      uses: benchmark-action/github-action-benchmark@v1
+      with:
+        tool: 'go'
+        output-file-path: bench.txt
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        auto-push: false
