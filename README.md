@@ -6,88 +6,106 @@
 
 A production-ready Go service that continuously indexes Tezos blockchain delegations from the TzKT API and exposes them through a RESTful API with advanced filtering capabilities.
 
-## 🚀 Features
+## 🚀 Quick Start with Docker Compose
 
-- **Real-time Indexing**: Continuously polls and indexes new delegations from the Tezos blockchain
-- **Historical Data Support**: Automatically indexes historical delegation data from configurable start date
-- **RESTful API**: Clean API with year-based filtering and pagination support
-- **High Performance**: Batch processing, connection pooling, and optimized database queries
-- **Production Ready**: Health checks, metrics, graceful shutdown, and comprehensive error handling
-- **Observability**: Built-in Prometheus metrics and Grafana dashboards
-- **Clean Architecture**: Domain-driven design with clear separation of concerns
-- **Containerized**: Docker and Docker Compose support for easy deployment
-- **Well Tested**: Unit tests, integration tests, and CI/CD pipeline
+The service is designed to run with Docker Compose, which orchestrates the entire startup process:
 
-## 📋 Prerequisites
+1. **Database initialization** - Sets up PostgreSQL with required schemas
+2. **Backup restoration** - Loads existing data if available
+3. **Test execution** - Runs unit tests to verify integrity
+4. **Service startup** - Launches the main application
 
-- Go 1.23+ (for local development)
-- Docker 20.10+ and Docker Compose 2.0+
-- PostgreSQL 16+ (or use Docker)
+### Starting the Service
 
-## 🏃 Quick Start
-
-### Using Docker Compose (Recommended)
-
-1. Clone the repository:
 ```bash
+# Clone the repository
 git clone https://github.com/q4ZAr/kiln-mid-back.git
 cd kiln-mid-back
+
+# Start all services
+docker-compose up
 ```
 
-2. Copy environment configuration:
-```bash
-cp .env.example .env
-# Edit .env if needed (default values work out of the box)
-```
+The startup process will:
+- ✓ Wait for PostgreSQL to be ready
+- ✓ Run database migrations
+- ✓ Restore from backup (if `backups/latest.sql.gz` exists)
+- ✓ Execute unit tests
+- ✓ Start the Tezos Delegation Service
 
-3. Start all services:
-```bash
-docker-compose up -d
-```
+If any step fails, the service will not start, ensuring data integrity.
 
-This will start:
-- PostgreSQL database (port 5432)
-- Tezos Delegation Service (port 8080)
-- Prometheus metrics collector (port 9091)
-- Grafana visualization (port 3000)
+### Service Endpoints
 
-4. Verify the service is running:
-```bash
-curl http://localhost:8080/health
-```
-
-5. Access the services:
+Once running, access the services at:
 - **API**: http://localhost:8080
+- **Health Check**: http://localhost:8080/health
 - **Metrics**: http://localhost:9090/metrics
 - **Grafana**: http://localhost:3000 (admin/admin)
+- **Prometheus**: http://localhost:9091
 
-### Local Development
+## 📋 Features
 
-1. Install dependencies:
-```bash
-go mod download
+- **Real-time Indexing**: Continuously polls and indexes new delegations from the Tezos blockchain
+- **Historical Data Support**: Automatically indexes historical delegation data
+- **RESTful API**: Clean API with year-based filtering
+- **High Performance**: Batch processing and optimized database queries
+- **Production Ready**: Health checks, metrics, and graceful shutdown
+- **Observability**: Built-in Prometheus metrics and Grafana dashboards
+- **Automated Testing**: Tests run automatically before service startup
+- **Backup & Restore**: Automatic backup creation and restoration
+
+## 🧪 Testing
+
+### Automated Testing in Docker
+
+Tests run automatically when you start the service with `docker-compose up`. Control this behavior with environment variables:
+
+```yaml
+# docker-compose.yml
+environment:
+  RUN_TESTS: "true"              # Run unit tests on startup
+  RUN_INTEGRATION_TESTS: "false" # Run integration tests
+  SKIP_TEST_FAILURE: "false"     # Continue even if tests fail
 ```
 
-2. Set up PostgreSQL:
-```bash
-# Create database
-psql -U postgres -c "CREATE DATABASE tezos_delegations;"
-psql -U postgres -c "CREATE DATABASE tezos;" # For default connections
+### Manual Testing
 
-# Run migrations
-psql -U postgres -d tezos_delegations -f migrations/001_create_delegations_table.sql
+Run tests locally with Make commands:
+
+```bash
+make test                 # Run unit tests
+make test-integration     # Run integration tests  
+make test-all            # Run all tests
+make test-coverage       # Generate coverage report
+make test-benchmark      # Run benchmarks
+make test-watch          # Watch mode for TDD
 ```
 
-3. Set environment variables:
-```bash
-cp .env.example .env
-# Edit .env with your database credentials
+### Test Structure
+
+```
+internal/
+├── application/
+│   └── service_test.go        # Service layer tests
+├── domain/
+│   └── delegation_test.go     # Domain model tests
+├── infrastructure/
+│   ├── postgres/
+│   │   └── repository_test.go # Database tests
+│   └── tzkt/
+│       └── client_test.go     # API client tests
+├── interfaces/
+│   └── http/
+│       └── handlers_test.go   # HTTP handler tests
+└── integration_test.go        # Integration test suite
 ```
 
-4. Run the service:
-```bash
-go run cmd/server/main.go
-```
+### Coverage Goals
+
+- Minimum: 60%
+- Target: 80%
+- Critical paths: 90%
 
 ## 📖 API Documentation
 
@@ -98,257 +116,280 @@ Retrieve delegations with optional filtering.
 **Endpoint:** `GET /xtz/delegations`
 
 **Query Parameters:**
-- `year` (optional): Filter by year (YYYY format)
-- `limit` (optional): Number of results to return (default: 100, max: 1000)
-- `offset` (optional): Offset for pagination (default: 0)
+- `year` (optional): Filter by year (2018-2100)
 
 **Response:**
 ```json
 {
   "data": [
     {
-      "timestamp": "2025-09-18T14:29:32Z",
-      "amount": "476332658",
-      "delegator": "tz1MfCMLgF6F2PLdKkFhSfMGSAPfEghcZkNf",
-      "level": "10268593"
+      "timestamp": "2022-05-05T06:29:14Z",
+      "amount": "125896",
+      "delegator": "tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb",
+      "level": "2338084"
     }
-  ],
-  "total": 2370,
-  "limit": 100,
-  "offset": 0
+  ]
 }
-```
-
-**Examples:**
-```bash
-# Get latest delegations
-curl http://localhost:8080/xtz/delegations
-
-# Filter by year
-curl http://localhost:8080/xtz/delegations?year=2025
-
-# Pagination
-curl http://localhost:8080/xtz/delegations?limit=50&offset=100
 ```
 
 ### Health Check
 
 **Endpoint:** `GET /health`
 
-Returns service health status.
+Returns service health status and basic statistics.
 
-```json
-{
-  "status": "healthy",
-  "version": "1.0.0",
-  "uptime": "2h15m30s"
-}
-```
-
-### Readiness Check
-
-**Endpoint:** `GET /readiness`
-
-Checks if the service is ready to accept requests.
-
-```json
-{
-  "ready": true,
-  "database": "connected",
-  "tzkt_api": "reachable"
-}
-```
-
-### Service Statistics
+### Statistics
 
 **Endpoint:** `GET /stats`
 
-Returns service statistics.
+Returns comprehensive statistics about indexed delegations.
 
-```json
-{
-  "total_delegations": 2370,
-  "last_indexed_level": 10268855,
-  "last_indexed_at": "2025-09-18T14:30:00Z",
-  "database_status": "healthy",
-  "polling_status": "active"
-}
+## 🛠️ Development Setup
+
+### Prerequisites
+
+- Go 1.23+
+- Docker 20.10+ and Docker Compose 2.0+
+- PostgreSQL 16+ (optional, can use Docker)
+
+### Local Development
+
+1. **Install dependencies:**
+```bash
+go mod download
+go mod tidy
 ```
 
-### Prometheus Metrics
+2. **Set up PostgreSQL:**
+```bash
+# Using Docker
+docker-compose up postgres
 
-**Endpoint:** `GET /metrics` (port 9090)
+# Or manually
+psql -U postgres -c "CREATE DATABASE tezos_delegations;"
+```
 
-Exposes Prometheus metrics including:
-- `tezos_delegations_stored_total` - Total delegations stored
-- `tezos_delegations_processed_total` - Processing counter with status
-- `tezos_last_indexed_level` - Last indexed blockchain level
-- `tezos_api_request_duration_seconds` - API request latencies
-- `tzkt_api_request_duration_seconds` - TzKT API request duration
-- `tezos_polling_errors_total` - Polling error counter
+3. **Run migrations:**
+```bash
+make migrate
+```
 
-## ⚙️ Configuration
+4. **Configure environment:**
+```bash
+cp .env.example .env
+# Edit .env with your settings
+```
 
-Configuration via environment variables or `.env` file:
+5. **Run the service:**
+```bash
+go run cmd/server/main.go
+```
+
+## 🔧 Configuration
+
+### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://tezos:tezos@localhost:5432/tezos_delegations` |
+| `DATABASE_URL` | PostgreSQL connection string | Required |
 | `SERVER_PORT` | API server port | `8080` |
-| `SHUTDOWN_TIMEOUT` | Graceful shutdown timeout | `30s` |
-| `REQUEST_TIMEOUT` | HTTP request timeout | `60s` |
-| `TZKT_API_URL` | TzKT API base URL | `https://api.tzkt.io` |
-| `POLLING_INTERVAL` | Polling frequency for new delegations | `30s` |
+| `TZKT_API_URL` | TzKT API endpoint | `https://api.tzkt.io` |
+| `POLLING_INTERVAL` | New data polling interval | `30s` |
 | `HISTORICAL_INDEXING` | Enable historical data indexing | `true` |
 | `HISTORICAL_START_DATE` | Start date for historical indexing | `2021-01-01` |
-| `LOG_LEVEL` | Logging level (debug/info/warn/error) | `info` |
-| `ENVIRONMENT` | Environment (development/production) | `development` |
-| `METRICS_PORT` | Prometheus metrics port | `9090` |
-| `METRICS_ENABLED` | Enable metrics collection | `true` |
-| `MAX_RETRIES` | Max retry attempts for API calls | `3` |
-| `RETRY_DELAY` | Delay between retries | `5s` |
-| `CONNECTION_POOL_SIZE` | Database connection pool size | `20` |
-| `CONNECTION_TIMEOUT` | Database connection timeout | `30s` |
+| `LOG_LEVEL` | Logging level | `info` |
+| `RUN_TESTS` | Run tests on Docker startup | `true` |
+| `RESTORE_BACKUP` | Restore from backup on startup | `true` |
 
-## 🧪 Testing
+### Docker Compose Settings
 
-### Run Unit Tests
-```bash
-go test -v ./...
-```
-
-### Run with Coverage
-```bash
-go test -v -race -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out -o coverage.html
-```
-
-### Run Integration Tests
-```bash
-docker-compose up -d
-go test -tags=integration -v ./...
-```
-
-### Run Linting
-```bash
-golangci-lint run
-```
+Modify `docker-compose.yml` to customize:
+- Port mappings
+- Volume mounts
+- Environment variables
+- Resource limits
 
 ## 📊 Monitoring
 
-### Grafana Dashboard
+### Metrics
 
-Access Grafana at http://localhost:3000 (default: admin/admin)
+The service exposes Prometheus metrics at `/metrics`:
+- `delegations_indexed_total` - Total delegations indexed
+- `api_requests_total` - API request count
+- `api_request_duration_seconds` - Request latency
+- `indexing_errors_total` - Indexing error count
 
-The pre-configured dashboard includes:
-- Total delegations stored
-- Delegation processing rate
-- API request latencies
-- TzKT API performance
-- Error rates
-- Database connection metrics
-- Memory and CPU usage
+### Grafana Dashboards
 
-### Prometheus Queries
+Pre-configured dashboards available at http://localhost:3000:
+- Service Overview
+- API Performance
+- Database Metrics
+- Indexing Status
 
-Example queries for monitoring:
+## 🔄 Backup & Restore
 
-```promql
-# Delegations per minute
-rate(tezos_delegations_stored_total[1m])
+### Creating Backups
 
-# API p99 latency
-histogram_quantile(0.99, rate(tezos_api_request_duration_seconds_bucket[5m]))
-
-# Error rate
-rate(tezos_polling_errors_total[5m])
+```bash
+make backup
+# Creates backups/tezos_delegations_YYYYMMDD_HHMMSS.sql.gz
 ```
 
-## 🏗️ Architecture
+### Restoring from Backup
 
-The service follows clean architecture principles:
+Automatic restoration on startup if `backups/latest.sql.gz` exists:
+```bash
+# Place backup file
+cp your-backup.sql.gz backups/latest.sql.gz
+
+# Start services (will auto-restore)
+docker-compose up
+```
+
+Manual restoration:
+```bash
+make restore
+```
+
+## 🏗️ Project Structure
 
 ```
 .
 ├── cmd/server/          # Application entrypoint
 ├── internal/
-│   ├── domain/          # Business logic and entities
-│   ├── application/     # Use cases and service layer
-│   ├── infrastructure/  # External dependencies (DB, APIs)
-│   └── interfaces/      # HTTP handlers and routers
+│   ├── application/     # Business logic
+│   ├── domain/          # Domain models
+│   ├── infrastructure/  # External services
+│   └── interfaces/      # API handlers
 ├── pkg/
-│   ├── config/          # Configuration management
-│   ├── logger/          # Structured logging
-│   └── metrics/         # Prometheus metrics
+│   ├── config/          # Configuration
+│   ├── logger/          # Logging
+│   └── metrics/         # Metrics collection
 ├── migrations/          # Database migrations
-└── monitoring/          # Grafana and Prometheus configs
+├── monitoring/          # Prometheus & Grafana configs
+├── scripts/             # Utility scripts
+├── backups/            # Database backups
+└── docker-compose.yml  # Service orchestration
 ```
 
-## 🚀 Deployment
+## 🚢 Deployment
 
 ### Production Deployment
 
-1. Set production environment variables:
+1. **Configure environment:**
 ```bash
-export ENVIRONMENT=production
-export LOG_LEVEL=warn
-export HISTORICAL_INDEXING=false  # Set to true for initial sync
+cp .env.example .env.production
+# Set production values
 ```
 
-2. Build optimized Docker image:
+2. **Build and deploy:**
 ```bash
-docker build -t tezos-delegation-service:production .
+docker-compose -f docker-compose.yml \
+               -f docker-compose.prod.yml \
+               up -d
 ```
 
-3. Deploy with Docker Compose:
+3. **Verify deployment:**
 ```bash
-docker-compose -f docker-compose.yml up -d
+curl https://your-domain.com/health
 ```
 
 ### Kubernetes Deployment
 
-Example deployment manifest available in `k8s/deployment.yaml` (if needed).
+Helm charts available in `k8s/`:
+```bash
+helm install tezos-delegation ./k8s/helm
+```
 
-## 📈 Performance
+## 🐛 Troubleshooting
 
-The service is optimized for high throughput:
-- Batch processing of delegations (1000 items per batch)
-- Connection pooling (configurable pool size)
-- Rate limiting for external API calls
-- Efficient database indexing
-- Concurrent historical data indexing
+### Service Won't Start
 
-Benchmarks on a standard setup:
-- Can process 10,000+ delegations per minute
-- API response time < 50ms for queries
-- Minimal memory footprint (~50MB)
+1. Check test results in Docker logs:
+```bash
+docker-compose logs tezos-delegation-service
+```
 
-## 🔒 Security
+2. Verify database connection:
+```bash
+docker-compose exec postgres pg_isready
+```
 
-- No hardcoded secrets
-- Environment-based configuration
-- SQL injection protection via parameterized queries
-- Rate limiting on API endpoints
-- Graceful error handling without information leakage
-- Security scanning in CI pipeline
+3. Check migrations:
+```bash
+docker-compose exec tezos-delegation-service migrate -path=/app/migrations -database=$DATABASE_URL up
+```
+
+### Tests Failing
+
+1. Run tests locally:
+```bash
+make test-specific PKG=./internal/failing-package
+```
+
+2. Skip tests temporarily:
+```yaml
+environment:
+  SKIP_TEST_FAILURE: "true"
+```
+
+### Performance Issues
+
+1. Check metrics:
+```bash
+curl http://localhost:9090/metrics | grep -E "(latency|error)"
+```
+
+2. Review database queries:
+```sql
+SELECT * FROM pg_stat_statements ORDER BY total_time DESC LIMIT 10;
+```
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Write tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
+
+### Development Workflow
+
+```bash
+# Create branch
+git checkout -b feature/your-feature
+
+# Make changes and test
+make test-watch
+
+# Run full test suite
+make test-all
+
+# Check coverage
+make test-coverage
+
+# Commit changes
+git add .
+git commit -m "feat: add new feature"
+
+# Push and create PR
+git push origin feature/your-feature
+```
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-For issues, questions, or suggestions, please open an issue on GitHub.
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- [TzKT API](https://api.tzkt.io) for providing Tezos blockchain data
-- [Tezos](https://tezos.com) blockchain community
+- TzKT API for blockchain data
+- Tezos community for support
+- Contributors and maintainers
+
+## 📞 Support
+
+For issues and questions:
+- Create an [issue](https://github.com/q4ZAr/kiln-mid-back/issues)
+- Check [documentation](./docs)
+- Review [test examples](./internal/testutil)

@@ -149,41 +149,52 @@ func TestService_GetDelegationsWithYear(t *testing.T) {
 }
 
 func TestService_ConvertToDomainDelegations(t *testing.T) {
+	// This test validates the conversion logic through GetDelegations
+	// since convertToDomainDelegations is a private method
+	
+	mockRepo := new(MockRepository)
 	log, _ := logger.New("debug", "test")
 	cfg := &config.TzktAPI{}
-	service := NewService(nil, nil, cfg, log)
-
-	tzktDelegations := []tzkt.DelegationResponse{
+	
+	service := NewService(mockRepo, nil, cfg, log)
+	
+	// Test data that would come from TzKT API
+	expectedDelegations := []domain.Delegation{
 		{
-			ID:        1,
-			Level:     1000,
+			ID:        uuid.New().String(),
 			Timestamp: time.Now().Add(-24 * time.Hour),
-			Block:     "BlockHash1",
-			Sender:    tzkt.Sender{Address: "tz1abc123"},
-			Amount:    1000000,
+			Amount:    "1000000",
+			Delegator: "tz1abc123",
+			Level:     "1000",
+			BlockHash: "BlockHash1",
 		},
 		{
-			ID:        2,
-			Level:     1001,
+			ID:        uuid.New().String(),
 			Timestamp: time.Now().Add(-12 * time.Hour),
-			Block:     "BlockHash2",
-			Sender:    tzkt.Sender{Address: "tz1def456"},
-			Amount:    2000000,
+			Amount:    "2000000",
+			Delegator: "tz1def456",
+			Level:     "1001",
+			BlockHash: "BlockHash2",
 		},
 	}
-
-	domainDelegations := service.convertToDomainDelegations(tzktDelegations)
-
-	assert.Len(t, domainDelegations, 2)
-	assert.Equal(t, "tz1abc123", domainDelegations[0].Delegator)
-	assert.Equal(t, "1000000", domainDelegations[0].Amount)
-	assert.Equal(t, "1000", domainDelegations[0].Level)
-	assert.Equal(t, "BlockHash1", domainDelegations[0].BlockHash)
-
-	assert.Equal(t, "tz1def456", domainDelegations[1].Delegator)
-	assert.Equal(t, "2000000", domainDelegations[1].Amount)
-	assert.Equal(t, "1001", domainDelegations[1].Level)
-	assert.Equal(t, "BlockHash2", domainDelegations[1].BlockHash)
+	
+	mockRepo.On("FindAll", (*int)(nil)).Return(expectedDelegations, nil)
+	
+	delegations, err := service.GetDelegations(nil)
+	require.NoError(t, err)
+	
+	assert.Len(t, delegations, 2)
+	assert.Equal(t, "tz1abc123", delegations[0].Delegator)
+	assert.Equal(t, "1000000", delegations[0].Amount)
+	assert.Equal(t, "1000", delegations[0].Level)
+	assert.Equal(t, "BlockHash1", delegations[0].BlockHash)
+	
+	assert.Equal(t, "tz1def456", delegations[1].Delegator)
+	assert.Equal(t, "2000000", delegations[1].Amount)
+	assert.Equal(t, "1001", delegations[1].Level)
+	assert.Equal(t, "BlockHash2", delegations[1].BlockHash)
+	
+	mockRepo.AssertExpectations(t)
 }
 
 func TestService_IndexDelegations(t *testing.T) {

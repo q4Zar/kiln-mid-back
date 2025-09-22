@@ -16,29 +16,30 @@ COPY . .
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o tezos-delegation-service cmd/server/main.go
 
-# Test stage
+# Test stage - runs tests during build
 FROM builder AS test
-RUN go test -v ./...
+RUN go test -v -short -race ./...
 
-# Final stage
-FROM alpine:3.19
+# Migration tools stage
+FROM golang:1.23-alpine AS migration
+RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.0
 
-# Install ca-certificates for HTTPS and PostgreSQL client
-RUN apk --no-cache add ca-certificates tzdata postgresql-client bash
+# Final stage - using golang image to support testing
+FROM golang:1.23-alpine AS final
+
+# Install runtime dependencies
+RUN apk --no-cache add ca-certificates tzdata postgresql-client bash gcc musl-dev
 
 WORKDIR /app
 
-# Copy the binary from builder
-COPY --from=builder /app/tezos-delegation-service .
-COPY --from=builder /app/migrations ./migrations
+# Copy source code for testing
+COPY --from=builder /app /app
 
-# Copy scripts
-COPY scripts/startup.sh /app/
-COPY scripts/backup.sh /app/
-COPY scripts/restore.sh /app/
+# Copy migration tool
+COPY --from=migration /go/bin/migrate /usr/local/bin/migrate
 
 # Make scripts executable
-RUN chmod +x /app/*.sh
+RUN chmod +x /app/scripts/*.sh
 
 # Create backup directory
 RUN mkdir -p /backups
